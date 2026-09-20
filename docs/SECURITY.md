@@ -1,25 +1,47 @@
-# Security
+# ความปลอดภัย
 
-## Keep local secrets local
+Custom MCP และ Serena สามารถอ่านไฟล์, แก้ไฟล์ และรันคำสั่งใน project ที่เชื่อมไว้ได้ จึงควรเพิ่มเฉพาะ project ที่ไว้ใจ และตรวจทุกการเปลี่ยนแปลงก่อนใช้งานหรือส่งต่อ
 
-Never commit or publish:
+## ห้าม Commit สิ่งเหล่านี้
 
-- control-plane API keys or tokens
-- DPAPI credential files (`*.dpapi`)
-- tunnel IDs, generated tunnel profiles, or account-specific endpoints
-- private keys, certificates, `.env` files, logs, backups, crash traces, or local project paths
+- API key หรือ access token
+- DPAPI credential (`*.dpapi`)
+- Tunnel ID จริง, tunnel profile ที่สร้างแล้ว หรือ endpoint เฉพาะ account
+- `.env`
+- private key หรือ certificate
+- logs, backup, crash trace หรือ local project path ที่มีข้อมูลส่วนตัว
 
-The supplied `.gitignore` covers common runtime artifacts. It is a guardrail, not a guarantee. Review these before every commit:
+## Credential ควรอยู่ที่ไหน
 
-```powershell
+credential ควรอยู่ local-only บนเครื่องของคุณ ไม่อยู่ใน repository, README, issue หรือ commit
+
+`.gitignore` ช่วยกัน runtime artifacts ที่พบบ่อย แต่ไม่สามารถรับประกันได้ทั้งหมด ตรวจ `git status` ทุกครั้งก่อน commit
+
+## ก่อน Push ขึ้น GitHub
+
+ตรวจไฟล์ที่กำลังจะเผยแพร่:
+
+```cmd
 git status --short
-git diff --cached
+git diff --cached --check
 ```
 
-## Local code access
+ค้นคำที่เสี่ยง เช่น:
 
-Serena project configuration can permit file reads, writes, and shell commands. Add only projects you trust, restrict filesystem permissions where appropriate, review every code change, and stop tunnels that are not in use.
+- `C:\Users\`
+- `tunnel_`
+- `api_key`
+- `Bearer `
+- `BEGIN PRIVATE KEY`
 
-## Reporting a vulnerability
+คำเหล่านี้อาจปรากฏใน code หรือ docs ได้ แต่ต้องไม่มีค่าจริง, credential จริง หรือข้อมูลส่วนตัวติดไปด้วย
 
-Do not open a public issue containing credentials, tunnel IDs, private project paths, or reproduction logs. Use the repository maintainer’s private contact channel once one is published. Until then, share only a sanitized description and request a private reporting method.
+## การเข้าถึง local code
+
+ใช้สิทธิ์เท่าที่จำเป็น จำกัด filesystem permissions หากทำได้, เชื่อมเฉพาะ repository ที่ไว้ใจ และ Stop Tunnel เมื่อเลิกใช้งาน
+
+## การรายงาน Security issue
+
+ห้ามเปิด public issue ที่มี credential, Tunnel ID, local project path หรือ reproduction log ที่ไม่ได้ sanitize
+
+เมื่อมีช่องทาง private contact ของ maintainer ให้ใช้ช่องทางนั้นสำหรับรายงานปัญหาด้านความปลอดภัย ก่อนมีช่องทางดังกล่าว ให้ส่งเพียงคำอธิบายที่ผ่านการ sanitize และขอวิธีติดต่อแบบ private

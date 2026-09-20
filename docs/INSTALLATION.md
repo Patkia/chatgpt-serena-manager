@@ -1,65 +1,108 @@
-# Installation (Windows)
+# การติดตั้งบน Windows
 
-## 1. Install prerequisites
+เอกสารนี้อธิบายการเตรียมเครื่องสำหรับใช้ Serena Manager กับ local project บน Windows
 
-Install Python 3 with Tkinter and the Python launcher. Confirm:
+## 1. สิ่งที่ต้องติดตั้งก่อน
+
+ติดตั้ง Python 3 ที่มี Tkinter และ Python Launcher แล้วตรวจสอบด้วยคำสั่ง:
 
 ```powershell
 py -3 --version
 pyw.exe -3 --version
 ```
 
-Install Serena following its own documentation, then confirm it is on `PATH`:
+ติดตั้ง Node.js สำหรับ Language Server ที่ต้องใช้ JavaScript/TypeScript แล้วตรวจสอบ:
+
+```cmd
+node -v
+npm -v
+where node
+```
+
+ติดตั้ง Serena ตามเอกสารของ Serena และตรวจว่าอยู่บน `PATH`:
 
 ```powershell
 serena --help
 ```
 
-Install the Secure MCP Tunnel client supplied for your account. Keep its executable and credential outside the repository.
+ติดตั้ง Secure MCP Tunnel client ที่ออกให้สำหรับ account ของคุณ เก็บตัว executable และ credential ไว้นอก repository เสมอ ถ้าจะ clone repository แนะนำให้ติดตั้ง Git ด้วย
 
-## 2. Clone or copy this repository
+## 2. Clone หรือวาง Serena Manager
 
-Place the Manager in a tools folder. By default it discovers sibling launcher folders, for example:
+วาง Serena Manager ไว้ในโฟลเดอร์ tools โดยปกติ Manager จะค้นหา launcher folders ที่เป็น sibling กัน ตัวอย่าง:
 
 ```text
 %USERPROFILE%\Tools\Serena-manager
 %USERPROFILE%\Tools\Serena-example-project
 ```
 
-If you use another location, set `SERENA_TOOLS_ROOT` to the folder that contains all `Serena-*` launcher directories before starting the Manager.
+หากใช้ตำแหน่งอื่น ให้ตั้งค่า `SERENA_TOOLS_ROOT` เป็นโฟลเดอร์ที่เก็บ launcher directories ชื่อ `Serena-*` ทั้งหมด ก่อนเปิด Manager
 
-## 3. Configure local-only credentials
+## 3. ตั้งค่า Credential แบบ local-only
 
-Create your control-plane API key file locally, encrypted for your Windows account if your tunnel client uses DPAPI. The current launcher convention expects:
+สร้าง control-plane API key file บนเครื่องของคุณเอง ถ้า tunnel client ใช้ DPAPI ให้เข้ารหัสสำหรับ Windows account ของคุณ
+
+launcher ปัจจุบันใช้ convention นี้:
 
 ```text
 %USERPROFILE%\Tools\control-plane-api-key.dpapi
 ```
 
-Do not place this file in the repository. Do not paste the key into a launcher, README, issue, or commit.
+- credential ต้องอยู่บนเครื่องเท่านั้น
+- ห้ามใส่ไฟล์นี้ใน repository
+- ห้าม paste API key ลง launcher, README, issue หรือ commit
 
-## 4. Install the tunnel client locally
+repository ควรมีเฉพาะ code และ template ที่ปลอดภัยต่อการเผยแพร่
 
-The Add Project flow needs a local tunnel executable. Its default convention is:
+## 4. ติดตั้ง Tunnel client ในเครื่อง
+
+Add Project flow ต้องใช้ tunnel executable ในเครื่อง โดย convention ปัจจุบันคือ:
 
 ```text
 %USERPROFILE%\Tools\tunnel-client-v0.0.14-windows-amd64\tunnel-client.exe
 ```
 
-If your installation differs, use the existing launcher configuration pattern or adapt your local setup outside version control. Do not commit account-specific profiles from `%APPDATA%\tunnel-client`.
+หากตำแหน่งติดตั้งต่างออกไป ให้ปรับ local setup ของคุณนอก version control และอย่า commit profile เฉพาะ account จาก `%APPDATA%\tunnel-client`
 
-## 5. Start the Manager
+Serena Manager ใช้ Python standard library จึงไม่มี Python package เพิ่มที่ต้องติดตั้งจาก `requirements.txt`
 
-Double-click `Start-Serena-Manager.cmd`. It invokes the hidden VBS launcher, so no Command Prompt should remain open.
+## 5. เปิด Serena Manager
 
-If it does not open, run the script from PowerShell to see errors:
+ดับเบิลคลิก:
+
+```text
+Start-Serena-Manager.cmd
+```
+
+ไฟล์นี้เรียก hidden VBS launcher จึงไม่ควรมี Command Prompt ค้างอยู่
+
+หาก Manager ไม่เปิด ให้รันจาก PowerShell เพื่อดู error:
 
 ```powershell
 py -3 .\Serena-Manager.py
 ```
 
-## 6. Add the first project
+## 6. เพิ่ม Project แรก
 
-Use **+** in the Manager, select an existing source folder, choose a safe project name, and enter a tunnel ID issued for that project. The Manager writes local Serena metadata, a launcher folder, and a tunnel profile, then validates the generated setup.
+1. กดปุ่ม `+` ใน Serena Manager
+2. เลือก folder source project ที่มีอยู่แล้ว
+3. ตั้งชื่อ project และใส่ Tunnel ID ของ project นั้น
+4. ตรวจ launcher path และ port ที่ระบบเลือก
+5. กด Create
+6. เลือก project ที่สร้างแล้ว แล้วกด Start
 
-The generated project config enables writing. Use a disposable test repository first and review the generated files.
+Manager จะสร้าง Serena metadata, launcher folder และ tunnel profile ในเครื่อง พร้อมตรวจ setup ที่สร้างขึ้น
+
+project config ที่สร้างใหม่เปิดสิทธิ์เขียนได้ ควรเริ่มจาก test repository และตรวจไฟล์ที่สร้างก่อนใช้กับงานสำคัญ
+
+## 7. เชื่อม ChatGPT
+
+ก่อน Create หรือใช้งาน Custom MCP Plugin ต้อง Start project ก่อน แล้วตรวจให้เห็น:
+
+```text
+Serena = RUNNING
+Tunnel = RUNNING
+Status = RUNNING
+```
+
+หากยังไม่ Start อาจพบ `Error creating connector` ตอนสร้าง Plugin
