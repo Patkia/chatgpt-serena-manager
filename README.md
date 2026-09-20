@@ -1,16 +1,24 @@
-# Serena Manager
+# ChatGPT Serena Manager
 
-**ChatGPT Sol + Serena สำหรับใช้แทน Codex**
+**ChatGPT Sol + Serena สำหรับใช้แทน Codex ในการทำงานกับ Local Project บน Windows**
 
-Use ChatGPT with Serena MCP to work directly with local code projects. Serena Manager is an independent Windows community tool; it is not an official OpenAI or Serena product.
+Serena Manager เป็นเครื่องมือสำหรับเปิด/ปิด Serena MCP และ Secure MCP Tunnel ของหลาย project จากหน้าต่างเดียวบน Windows
 
-![Sanitized Serena Manager mockup](docs/screenshots/serena-manager-mockup.svg)
+เมื่อเชื่อมกับ ChatGPT แล้ว สามารถให้ ChatGPT อ่านโค้ด ค้นหา symbol แก้ไฟล์ ตรวจ diagnostics และรันคำสั่งใน local project ผ่าน Serena tools ได้
 
-## Overview
+> โปรเจกต์นี้เป็น community / personal tool และไม่ได้เป็นผลิตภัณฑ์อย่างเป็นทางการของ OpenAI หรือ Serena
 
-Serena Manager starts, stops, restarts, and observes multiple local Serena MCP projects and their Secure MCP Tunnel processes. It discovers project launchers, shows MCP and health ports, provides debug and log access, and can create or safely remove Manager-owned project setup.
+![ตัวอย่างหน้าจอ Serena Manager สำหรับจัดการหลาย project](docs/screenshots/serena-manager-mockup.svg)
 
-## How it works
+*ตัวอย่างหน้าจอ Serena Manager สำหรับจัดการหลาย project*
+
+## ทำไมถึงมีโปรเจกต์นี้
+
+เมื่อใช้ Serena กับหลาย local project จะต้องจัดการ Serena MCP server, Secure MCP Tunnel, port, launcher และสถานะของแต่ละ project แยกกัน
+
+Serena Manager รวมงานเหล่านี้ไว้ใน GUI เดียว เพื่อให้เลือก project ที่ต้องการแล้ว Start, Stop หรือดูสถานะได้สะดวกขึ้น
+
+ภาพรวม workflow:
 
 ```mermaid
 flowchart LR
@@ -20,74 +28,179 @@ flowchart LR
     D --> E[Local Project]
 ```
 
-## Features
+## ใช้ทำอะไรได้บ้าง
 
-- Manage multiple Serena projects in one Windows UI
-- Start, stop, restart, and debug a selected project
-- Show Serena, tunnel, MCP port, health port, and combined status
-- Run normal launches hidden in the background
-- Open per-project launcher logs
-- Add projects with generated launchers and tunnel profile
-- Safely remove only projects created by the Manager
-- Persist drag-and-drop project ordering per user
+- จัดการ Serena หลาย project จากหน้าต่างเดียว
+- Start / Stop / Restart project ที่เลือก
+- ดูสถานะ Serena และ Tunnel แยกกัน
+- ดู MCP Port และ Health Port
+- เพิ่ม project ใหม่จาก GUI พร้อมสร้าง launcher และ tunnel profile ในเครื่อง
+- เปิด Debug launcher และ launcher log
+- รัน normal start แบบ hidden/background
+- จำลำดับ project ที่ลากเรียงไว้
+- เชื่อม workflow เข้ากับ ChatGPT ผ่าน Custom MCP Plugin
 
-## Requirements
+## ตัวอย่างการใช้งานกับ ChatGPT
 
-- Windows 10 or Windows 11
-- Python 3 with Tkinter and the `pyw.exe` launcher
-- Serena installed and available on `PATH` as `serena`
-- A Secure MCP Tunnel client installed locally
-- A local control-plane API key stored only on your computer
-- A ChatGPT account and product configuration that supports your custom MCP/plugin workflow
+เมื่อ project ขึ้นพร้อมแล้ว ChatGPT สามารถใช้ Serena tools เพื่อทำงานกับ source ในเครื่องได้ ตัวอย่าง prompt:
 
-## Installation
+```text
+เช็ก Serena my-project
+```
 
-Read the Windows-first [installation guide](docs/INSTALLATION.md). The Manager itself has no third-party Python package dependency; `requirements.txt` documents that fact.
+```text
+ช่วยดู architecture ของ project นี้
+```
 
-## First project setup
+```text
+หา function ที่เกี่ยวกับ login แล้วอธิบาย flow ให้หน่อย
+```
 
-1. Open Serena Manager with `Start-Serena-Manager.cmd`.
-2. Select **+** (Add).
-3. Choose an existing local project folder, set the project name, and enter **your own** tunnel ID.
-4. Review the selected MCP and health ports, then select **Create**.
-5. Wait for the setup validation to finish. The Manager leaves the new project stopped.
+```text
+ช่วยแก้ bug นี้ แล้วตรวจ references ที่เกี่ยวข้องก่อน
+```
 
-The generated configuration grants Serena write capability (`read_only: false`). Connect only projects you trust and review changes before accepting them.
+```text
+หลังแก้ช่วยเช็ก diagnostics และ run test ที่เกี่ยวข้อง
+```
 
-## ChatGPT plugin setup
+ก่อนให้ ChatGPT แก้โค้ด ควรสั่งให้ตรวจ Active project ทุกครั้ง เพื่อป้องกันการทำงานผิด folder
 
-Start the project first. Before creating or using a custom MCP plugin, verify that both **Serena** and **Tunnel** display **RUNNING**.
+## สิ่งที่ต้องมี
 
-In ChatGPT, open Settings, then Plugins, and create/add a custom MCP plugin for your tunnel. Use the authentication option required by your tunnel setup; many local configurations use **No Auth**. Accept the custom MCP warning only after checking the selected project and tunnel.
+- Windows 10 / 11
+- Python
+- Node.js
+- Serena
+- Secure MCP Tunnel client
+- ChatGPT ที่รองรับ Custom MCP / Plugins
+- Git (แนะนำ แต่ไม่จำเป็นสำหรับการเปิด Serena Manager)
 
-Use placeholders in examples only:
+## การติดตั้งแบบเร็ว
+
+### 1. Clone repository
+
+```cmd
+git clone <repo-url>
+cd chatgpt-serena-manager
+```
+
+### 2. เตรียม Serena, Node.js และ Tunnel client
+
+Serena Manager ใช้ Python standard library จึงไม่มี Python package เพิ่มที่ต้องติดตั้งจาก `requirements.txt` ดูขั้นตอนติดตั้งแบบละเอียดได้ที่ [Installation](docs/INSTALLATION.md)
+
+### 3. เปิด Serena Manager
+
+เปิดไฟล์นี้จากโฟลเดอร์ project:
+
+```text
+Start-Serena-Manager.cmd
+```
+
+## เพิ่ม Project แรก
+
+1. กดปุ่ม `+`
+2. เลือก folder ของ project
+3. ใส่ Tunnel ID ของตัวเอง
+4. ตรวจชื่อ project และ port ที่ระบบเลือก
+5. กด Create
+6. เลือก project ที่เพิ่งเพิ่ม
+7. กด Start
+
+เมื่อพร้อม ควรเห็นสถานะนี้:
+
+```text
+Serena: RUNNING
+Tunnel: RUNNING
+Status: RUNNING
+```
+
+ถ้า Serena ขึ้น แต่ Tunnel ยังไม่ขึ้น สถานะจะเป็น `PARTIAL` ดูแนวทางแก้ได้ที่ [Troubleshooting](docs/TROUBLESHOOTING.md)
+
+## เชื่อมกับ ChatGPT
+
+ก่อนสร้างหรือใช้งาน Plugin ต้อง Start project ก่อน และตรวจให้เห็น:
+
+```text
+Serena = RUNNING
+Tunnel = RUNNING
+Status = RUNNING
+```
+
+จากนั้นใน ChatGPT:
+
+```text
+Settings
+→ Plugins
+→ Add/Create custom MCP
+→ เลือก Tunnel
+→ เลือก Authentication ตาม setup ของคุณ
+→ ยอมรับคำเตือน Custom MCP
+→ Create
+```
+
+ใช้ Tunnel ID ของตัวเองเท่านั้น ตัวอย่างนี้เป็น placeholder:
 
 ```text
 tunnel_xxxxxxxxxxxxxxxxx
 ```
 
-Never publish a real tunnel ID, API key, DPAPI credential file, or generated tunnel profile.
+หากกด Create Plugin ตอน Serena หรือ Tunnel ยัง `STOPPED` อาจพบข้อความ `Error creating connector`
 
-## Using it with ChatGPT
+## วิธีใช้งานประจำวัน
 
-Examples:
+1. เปิด Serena Manager
+2. Start project ที่ต้องการ
+3. เช็กว่า `RUNNING / RUNNING / RUNNING`
+4. เปิด ChatGPT
+5. เลือกหรือเปิด Plugin ของ project นั้น
+6. สั่ง ChatGPT ให้เช็ก Active project
+7. เริ่มอ่านหรือแก้ code
+8. เมื่อเลิกใช้ กด Stop
 
-- `เช็ก Serena my-project`
-- `อ่าน architecture ของ project นี้`
-- `หา function ที่รับผิดชอบ login`
-- `แก้ bug นี้โดยตรวจ references ก่อน`
-- `ตรวจ diagnostics หลังแก้`
+## 🔐 เรื่องความปลอดภัย
 
-Ask ChatGPT to verify the active Serena project before it reads or changes code.
+อย่า commit หรือแชร์สิ่งเหล่านี้:
 
-## Typical workflow
+- API key
+- DPAPI credential
+- Tunnel ID จริง
+- tunnel profile
+- `.env`
+- private key
+- logs ที่มีข้อมูลส่วนตัว
 
-`Start project → confirm RUNNING → connect plugin → verify active project → inspect → edit → test → stop when finished`
+repository นี้ออกแบบให้ credential อยู่ local เท่านั้น แต่ควรตรวจ `git status` ก่อน commit ทุกครั้ง ดูรายละเอียดเพิ่มได้ที่ [Security](docs/SECURITY.md)
 
-See [Usage](docs/USAGE.md), [Troubleshooting](docs/TROUBLESHOOTING.md), and [Security](docs/SECURITY.md) for details.
+## Troubleshooting แบบย่อ
 
-## Security
+### Node.js not found
 
-**Never commit your API key, DPAPI credential file, tunnel ID, generated profile, or logs.** The repository `.gitignore` excludes common local runtime artifacts, but inspect `git status` before every commit.
+```cmd
+node -v
+npm -v
+where node
+```
 
-Custom MCP access can read and write local project files. Use least privilege, connect only trusted repositories, and review generated launchers/configuration before use.
+ถ้าเพิ่งติดตั้ง Node.js ให้ปิด Serena Manager แล้วเปิดใหม่
+
+### Status = PARTIAL
+
+หมายถึง Serena หรือ Tunnel ตัวใดตัวหนึ่งยังไม่พร้อม เปิด log ของ project นั้นและตรวจสถานะทั้งสองส่วนแยกกัน
+
+### Plugin สร้างไม่ได้
+
+Start Serena และ Tunnel ก่อน แล้วรอให้สถานะเป็น `RUNNING / RUNNING / RUNNING`
+
+### Port ชน
+
+ตรวจว่าไม่มี project อื่นหรือ process อื่นใช้ MCP Port หรือ Health Port เดียวกัน
+
+ดูปัญหาเพิ่มเติมที่ [Troubleshooting](docs/TROUBLESHOOTING.md)
+
+## เอกสารเพิ่มเติม
+
+- [Installation](docs/INSTALLATION.md)
+- [Usage](docs/USAGE.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Security](docs/SECURITY.md)
