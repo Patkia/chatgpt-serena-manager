@@ -1,0 +1,2 @@
+# Serena Manager uses only the Python standard library (including tkinter).
+# Install Serena and the Secure MCP Tunnel client separately; see docs/INSTALLATION.md.

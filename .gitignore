@@ -1,0 +1,32 @@
+# Credentials and certificates
+*.dpapi
+*.key
+*.pem
+*.pfx
+*.p12
+.env
+.env.*
+*.secret
+*.secrets
+
+# Runtime state and diagnostic output
+*.log
+logs/
+backup/
+backups/
+tmp/
+temp/
+__pycache__/
+*.pyc
+
+# Per-user Serena and tunnel artifacts
+local-config.*
+project-order.json
+serena-manager-project.json
+tunnel-client/
+Serena-*/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
