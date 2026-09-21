@@ -32,6 +32,7 @@ MANAGER_ROOT = Path(__file__).resolve().parent
 TOOLS_ROOT = Path(os.environ.get("SERENA_TOOLS_ROOT", str(MANAGER_ROOT.parent))).expanduser()
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 ORDER_FILE = Path(os.environ.get("APPDATA", str(Path.home()))) / "Serena-manager" / "project-order.json"
+STALE_ENTRY_FILE = ORDER_FILE.with_name("stale-project-entries.json")
 ADD_ERROR_LOG = MANAGER_ROOT / "logs" / "add-project-errors.log"
 
 @dataclass
@@ -66,6 +67,7 @@ PORT_ASSIGNMENT = re.compile(r"^\s*\$(serenaPort|tunnelPort)\s*=\s*(\d+)\s*$", r
 
 def discover_projects(tools_root: Path = TOOLS_ROOT) -> list[Project]:
     projects: list[Project] = []
+    hidden_stale_entries = load_stale_entries()
     for folder in sorted(tools_root.glob("Serena-*"), key=lambda p: p.name.casefold()):
         if not folder.is_dir():
             continue
@@ -103,7 +105,8 @@ def discover_projects(tools_root: Path = TOOLS_ROOT) -> list[Project]:
                 raise ValueError(f"Missing {project.stop_cmd.name}")
         except (OSError, ValueError) as exc:
             project.parse_error = str(exc)
-        projects.append(project)
+        if not is_hidden_stale_entry(project, hidden_stale_entries):
+            projects.append(project)
     return projects
 
 def load_project_order() -> list[str]:
@@ -126,6 +129,100 @@ def save_project_order(projects: list[Project]) -> None:
         ORDER_FILE.write_text(json.dumps([project.name for project in projects], ensure_ascii=False, indent=2), encoding="utf-8")
     except OSError:
         pass
+
+def load_stale_entries() -> list[dict[str, str]]:
+    try:
+        payload = json.loads(STALE_ENTRY_FILE.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError, TypeError):
+        return []
+    entries = payload.get("entries") if isinstance(payload, dict) else None
+    if not isinstance(entries, list):
+        return []
+    result: list[dict[str, str]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        project_path = entry.get("project_path")
+        launcher_folder = entry.get("launcher_folder")
+        if all(isinstance(value, str) and value for value in (name, project_path, launcher_folder)):
+            result.append({"name": name, "project_path": project_path, "launcher_folder": launcher_folder})
+    return result
+
+def is_hidden_stale_entry(project: Project, entries: list[dict[str, str]] | None = None) -> bool:
+    if not project.project_path or Path(project.project_path).is_dir():
+        return False
+    for entry in entries if entries is not None else load_stale_entries():
+        if (entry["name"] == project.name
+                and os.path.normcase(entry["project_path"]) == os.path.normcase(project.project_path)
+                and os.path.normcase(entry["launcher_folder"]) == os.path.normcase(str(project.folder))):
+            return True
+    return False
+
+def query_project_processes(project: Project) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    script = (
+        "$rows=@(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {$_.CommandLine} | ForEach-Object {"
+        "[PSCustomObject]@{pid=[int]$_.ProcessId;name=[string]$_.Name;command_line=[string]$_.CommandLine}});"
+        "if($rows.Count -eq 0){'[]'}else{ConvertTo-Json -Compress -Depth 3 -InputObject $rows}"
+    )
+    rows = _powershell_json(script)
+    return (
+        [row for row in rows if matches_serena(str(row.get("command_line", "")), project)],
+        [row for row in rows if matches_tunnel(str(row.get("command_line", "")), project)],
+    )
+
+def verify_stale_entry_removal(project: Project) -> None:
+    if project.parse_error or not project.project_path:
+        raise OwnershipError("REMOVE BLOCKED — stale entry identity could not be parsed")
+    if Path(project.project_path).is_dir():
+        raise OwnershipError("REMOVE BLOCKED — project source folder still exists")
+    listeners = query_ports([project.mcp_port, project.health_port])
+    if listeners.get(project.mcp_port) or listeners.get(project.health_port):
+        raise OwnershipError("REMOVE BLOCKED — project MCP or health port is still listening")
+    serena_processes, tunnel_processes = query_project_processes(project)
+    if serena_processes or tunnel_processes:
+        raise OwnershipError("REMOVE BLOCKED — matching Serena or tunnel process is still running")
+    state = get_project_state(project, listeners)
+    if state.status != "STOPPED":
+        raise OwnershipError(f"REMOVE BLOCKED — project is not stopped ({state.status})")
+
+def _write_json_atomic(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".serena-manager.tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+def remove_stale_entry(project: Project) -> None:
+    verify_stale_entry_removal(project)
+    try:
+        order_payload = json.loads(ORDER_FILE.read_text(encoding="utf-8")) if ORDER_FILE.is_file() else []
+    except (OSError, ValueError, TypeError) as exc:
+        raise RuntimeError(f"REMOVE BLOCKED — Manager project order is invalid: {exc}") from exc
+    if not isinstance(order_payload, list) or any(not isinstance(name, str) for name in order_payload):
+        raise RuntimeError("REMOVE BLOCKED — Manager project order is invalid")
+    original_order = ORDER_FILE.read_bytes() if ORDER_FILE.is_file() else None
+    original_stale = STALE_ENTRY_FILE.read_bytes() if STALE_ENTRY_FILE.is_file() else None
+    entry = {"name": project.name, "project_path": project.project_path, "launcher_folder": str(project.folder)}
+    entries = [item for item in load_stale_entries() if item != entry]
+    entries.append(entry)
+    try:
+        _write_json_atomic(ORDER_FILE, [name for name in order_payload if name != project.name])
+        _write_json_atomic(STALE_ENTRY_FILE, {"version": 1, "entries": entries})
+    except Exception as exc:
+        try:
+            if original_order is None:
+                ORDER_FILE.unlink(missing_ok=True)
+            else:
+                ORDER_FILE.write_bytes(original_order)
+            if original_stale is None:
+                STALE_ENTRY_FILE.unlink(missing_ok=True)
+            else:
+                STALE_ENTRY_FILE.write_bytes(original_stale)
+        except OSError:
+            pass
+        raise RuntimeError(f"REMOVE BLOCKED — Manager stale entry state could not be saved: {exc}") from exc
 
 def _powershell_json(script: str) -> list[dict[str, object]]:
     completed = subprocess.run(
@@ -467,6 +564,58 @@ class ManagerApp:
         dialog.protocol("WM_DELETE_WINDOW", lambda: None if self.busy else dialog.destroy())
         folder_entry.focus_set()
 
+    def open_stale_entry_remove_dialog(self, project: Project) -> None:
+        dialog = self.tk.Toplevel(self.root)
+        dialog.title("Remove Stale Serena Entry")
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        dialog.grab_set()
+        body = self.ttk.Frame(dialog, padding=16); body.pack(fill="both", expand=True)
+        details = (
+            "Project folder was not found.\n\n"
+            f"Project: {project.name}\n"
+            f"Project Path: {project.project_path}\n\n"
+            "Remove this stale entry from Serena Manager only?\n\n"
+            "No source files, launcher files, tunnel profiles, or credentials will be deleted."
+        )
+        self.ttk.Label(body, text=details, justify="left").pack(anchor="w")
+        controls = self.ttk.Frame(body); controls.pack(anchor="e", pady=(12, 0))
+        remove_button = self.ttk.Button(controls, text="REMOVE ENTRY")
+        cancel_button = self.ttk.Button(controls, text="CANCEL", command=dialog.destroy)
+        remove_button.pack(side="left", padx=4); cancel_button.pack(side="left", padx=4)
+
+        def begin_remove_entry() -> None:
+            self.busy = True
+            remove_button.configure(state="disabled"); cancel_button.configure(state="disabled")
+            self.status_var.set(f"Removing stale entry {project.name}...")
+            events: queue.Queue[tuple[str, object]] = queue.Queue()
+            def work() -> None:
+                try:
+                    remove_stale_entry(project)
+                    events.put(("success", None))
+                except Exception as exc:
+                    events.put(("error", str(exc)))
+            def poll() -> None:
+                try:
+                    event, value = events.get_nowait()
+                except queue.Empty:
+                    self.root.after(100, poll); return
+                if event == "error":
+                    self.busy = False; self.status_var.set("Remove stale entry failed")
+                    self.messagebox.showerror("Remove Serena Project", str(value), parent=dialog)
+                    remove_button.configure(state="normal"); cancel_button.configure(state="normal")
+                    return
+                self.projects = [item for item in self.projects if item.name != project.name]
+                self.states.pop(project.name, None); self._render()
+                self.busy = False; dialog.destroy()
+                self.messagebox.showinfo("Remove Serena Project", "Removed the stale Serena Manager entry only.")
+                self.refresh()
+            threading.Thread(target=work, daemon=True).start()
+            self.root.after(100, poll)
+
+        remove_button.configure(command=begin_remove_entry)
+        dialog.protocol("WM_DELETE_WINDOW", lambda: None if self.busy else dialog.destroy())
+        cancel_button.focus_set()
     def open_remove_dialog(self) -> None:
         if self.busy: return
         project = self.selected_project()
@@ -479,7 +628,16 @@ class ManagerApp:
                 project.mcp_port, project.health_port,
             )
         except OwnershipError as exc:
-            self.messagebox.showerror("Remove Serena Project", str(exc)); return
+            if "manifest missing" not in str(exc):
+                self.messagebox.showerror("Remove Serena Project", str(exc)); return
+            try:
+                verify_stale_entry_removal(project)
+            except OwnershipError:
+                self.messagebox.showerror("Remove Serena Project", str(exc)); return
+            except Exception as stale_exc:
+                self.messagebox.showerror("Remove Serena Project", f"REMOVE BLOCKED — stale entry check failed: {stale_exc}"); return
+            self.open_stale_entry_remove_dialog(project)
+            return
         except Exception as exc:
             self.messagebox.showerror("Remove Serena Project", f"REMOVE BLOCKED — {exc}"); return
 
