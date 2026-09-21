@@ -241,29 +241,45 @@ class ManagerApp:
         self.root = tk.Tk()
         self.root.title("Serena Manager")
         self.root.geometry("1180x520")
+        self.root.configure(background="#f7f8fa")
+        style = ttk.Style(self.root)
+        style.configure("Main.TFrame", background="#f7f8fa")
+        style.configure("Actions.TFrame", background="#f7f8fa")
+        style.configure("Manager.Treeview", font=("Segoe UI", 10), rowheight=30,
+                        background="#ffffff", fieldbackground="#ffffff", foreground="#243447",
+                        bordercolor="#cbd5e1", lightcolor="#cbd5e1", darkcolor="#cbd5e1")
+        style.configure("Manager.Treeview.Heading", font=("Segoe UI", 10, "bold"),
+                        foreground="#334155", background="#eef3f8", relief="flat", padding=(9, 8))
+        style.map("Manager.Treeview", background=[("selected", "#dbeafe")],
+                  foreground=[("selected", "#1e3a5f")])
+        style.map("Manager.Treeview.Heading", background=[("active", "#e6edf5")])
+        style.configure("Action.TButton", font=("Segoe UI", 10), padding=(10, 5))
+        style.configure("Status.TLabel", font=("Segoe UI", 10), foreground="#475569", background="#f7f8fa")
         self.projects: list[Project] = []
         self.states: dict[str, ProjectState] = {}
         self.busy = False
         self.drag_name: str | None = None
-        frame = ttk.Frame(self.root, padding=10); frame.pack(fill="both", expand=True)
+        frame = ttk.Frame(self.root, style="Main.TFrame", padding=(14, 14, 14, 10)); frame.pack(fill="both", expand=True)
         columns = ("project", "path", "serena", "tunnel", "mcp", "health", "status")
-        self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="browse")
+        self.tree = ttk.Treeview(frame, columns=columns, show="headings", selectmode="browse", style="Manager.Treeview")
         headings = {"project":"Project","path":"Project Path","serena":"Serena","tunnel":"Tunnel","mcp":"MCP Port","health":"Health Port","status":"Status"}
         widths = {"project":180,"path":350,"serena":90,"tunnel":90,"mcp":80,"health":90,"status":110}
         for column in columns:
-            self.tree.heading(column, text=headings[column]); self.tree.column(column, width=widths[column], anchor="w")
-        for tag, color in (("RUNNING","#d9f2df"),("STOPPED","#eeeeee"),("PARTIAL","#fff2cc"),("ERROR","#f8d7da")):
-            self.tree.tag_configure(tag, background=color)
+            anchor = "w" if column in ("project", "path") else "center"
+            self.tree.heading(column, text=headings[column], anchor=anchor)
+            self.tree.column(column, width=widths[column], anchor=anchor)
+        for tag, color in (("RUNNING","#e1f5e7"),("STOPPED","#f7f8fa"),("PARTIAL","#fff7dc"),("ERROR","#fde8e8")):
+            self.tree.tag_configure(tag, background=color, foreground="#243447")
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview); scrollbar.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=scrollbar.set); self.tree.bind("<Double-1>", self.inspect_selected)
         self.tree.bind("<ButtonPress-1>", self._drag_start)
         self.tree.bind("<B1-Motion>", self._drag_motion)
         self.tree.bind("<ButtonRelease-1>", self._drag_end)
-        buttons = ttk.Frame(self.root, padding=(10,0,10,8)); buttons.pack(fill="x")
-        def icon_button(icon: str, hint: str, command: Callable[[], None]) -> None:
-            button = ttk.Button(buttons, text=icon, width=4, command=command)
-            button.pack(side="left", padx=3)
+        buttons = ttk.Frame(self.root, style="Actions.TFrame", padding=(14, 2, 14, 12)); buttons.pack(fill="x")
+        def action_button(label: str, hint: str, command: Callable[[], None]) -> None:
+            button = ttk.Button(buttons, text=label, style="Action.TButton", command=command)
+            button.pack(side="left", padx=(0, 6))
             tip: dict[str, object] = {"window": None}
             def show_tip(_event: object) -> None:
                 if tip["window"] is not None: return
@@ -275,16 +291,16 @@ class ManagerApp:
                 window = tip["window"]
                 if window is not None: window.destroy(); tip["window"] = None
             button.bind("<Enter>", show_tip); button.bind("<Leave>", hide_tip)
-        icon_button("＋", "เพิ่ม Serena project", self.open_add_dialog)
-        icon_button("▶", "Start project ที่เลือก", self.start_selected)
-        icon_button("■", "Stop project ที่เลือก", self.stop_selected)
-        icon_button("⟳", "Restart project ที่เลือก", self.restart_selected)
-        icon_button("🐞", "Debug Start", self.debug_selected)
-        icon_button("📄", "เปิด log", self.open_log)
-        icon_button("↻", "Refresh สถานะทั้งหมด", self.refresh)
-        icon_button("✕", "Remove Serena integration ที่เลือก", self.open_remove_dialog)
-        icon_button("⏹", "Stop ทุก project ที่กำลังทำงาน", self.stop_all)
-        self.status_var = tk.StringVar(value="Ready"); ttk.Label(buttons, textvariable=self.status_var).pack(side="right", padx=4)
+        action_button("＋ Add", "เพิ่ม Serena project", self.open_add_dialog)
+        action_button("▶ Start", "Start project ที่เลือก", self.start_selected)
+        action_button("■ Stop", "Stop project ที่เลือก", self.stop_selected)
+        action_button("↻ Restart", "Restart project ที่เลือก", self.restart_selected)
+        action_button("⚙ Debug", "Debug Start", self.debug_selected)
+        action_button("▣ Log", "เปิด log", self.open_log)
+        action_button("↻ Refresh", "Refresh สถานะทั้งหมด", self.refresh)
+        action_button("✕ Remove", "Remove Serena integration ที่เลือก", self.open_remove_dialog)
+        action_button("⏹ Stop All", "Stop ทุก project ที่กำลังทำงาน", self.stop_all)
+        self.status_var = tk.StringVar(value="Ready"); ttk.Label(buttons, textvariable=self.status_var, style="Status.TLabel").pack(side="right", padx=4)
         self.refresh()
 
     def selected_project(self) -> Project | None:
