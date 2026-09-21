@@ -276,6 +276,7 @@ class ManagerApp:
         self.tree.bind("<ButtonPress-1>", self._drag_start)
         self.tree.bind("<B1-Motion>", self._drag_motion)
         self.tree.bind("<ButtonRelease-1>", self._drag_end)
+        self.root.bind("<F5>", lambda _event: self.refresh())
         buttons = ttk.Frame(self.root, style="Actions.TFrame", padding=(14, 2, 14, 12)); buttons.pack(fill="x")
         def action_button(label: str, hint: str, command: Callable[[], None]) -> None:
             button = ttk.Button(buttons, text=label, style="Action.TButton", command=command)
@@ -291,14 +292,14 @@ class ManagerApp:
                 window = tip["window"]
                 if window is not None: window.destroy(); tip["window"] = None
             button.bind("<Enter>", show_tip); button.bind("<Leave>", hide_tip)
-        action_button("＋ Add", "เพิ่ม Serena project", self.open_add_dialog)
         action_button("▶ Start", "Start project ที่เลือก", self.start_selected)
         action_button("■ Stop", "Stop project ที่เลือก", self.stop_selected)
         action_button("↻ Restart", "Restart project ที่เลือก", self.restart_selected)
-        action_button("⚙ Debug", "Debug Start", self.debug_selected)
         action_button("▣ Log", "เปิด log", self.open_log)
-        action_button("↻ Refresh", "Refresh สถานะทั้งหมด", self.refresh)
+        ttk.Separator(buttons, orient="vertical").pack(side="left", fill="y", padx=(2, 8), pady=4)
+        action_button("＋ Add", "เพิ่ม Serena project", self.open_add_dialog)
         action_button("✕ Remove", "Remove Serena integration ที่เลือก", self.open_remove_dialog)
+        ttk.Separator(buttons, orient="vertical").pack(side="left", fill="y", padx=(2, 8), pady=4)
         action_button("⏹ Stop All", "Stop ทุก project ที่กำลังทำงาน", self.stop_all)
         self.status_var = tk.StringVar(value="Ready"); ttk.Label(buttons, textvariable=self.status_var, style="Status.TLabel").pack(side="right", padx=4)
         self.refresh()
