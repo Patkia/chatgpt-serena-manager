@@ -112,23 +112,42 @@ def discover_projects(tools_root: Path = TOOLS_ROOT) -> list[Project]:
 def load_project_order() -> list[str]:
     try:
         value = json.loads(ORDER_FILE.read_text(encoding="utf-8"))
-        return [str(name) for name in value if isinstance(name, str)] if isinstance(value, list) else []
     except (OSError, ValueError, TypeError):
         return []
+    if not isinstance(value, list):
+        return []
+    names: list[str] = []
+    seen: set[str] = set()
+    for name in value:
+        if isinstance(name, str) and name and name not in seen:
+            names.append(name); seen.add(name)
+    return names
 
 def order_projects(projects: list[Project]) -> list[Project]:
     saved = load_project_order()
     by_name = {project.name: project for project in projects}
-    ordered = [by_name[name] for name in saved if name in by_name]
-    ordered.extend(project for project in projects if project.name not in saved)
+    ordered: list[Project] = []
+    seen: set[str] = set()
+    for name in saved:
+        project = by_name.get(name)
+        if project is not None and name not in seen:
+            ordered.append(project); seen.add(name)
+    for project in projects:
+        if project.name not in seen:
+            ordered.append(project); seen.add(project.name)
     return ordered
 
-def save_project_order(projects: list[Project]) -> None:
+def save_project_order(projects: list[Project]) -> bool:
+    names: list[str] = []
+    seen: set[str] = set()
+    for project in projects:
+        if project.name and project.name not in seen:
+            names.append(project.name); seen.add(project.name)
     try:
-        ORDER_FILE.parent.mkdir(parents=True, exist_ok=True)
-        ORDER_FILE.write_text(json.dumps([project.name for project in projects], ensure_ascii=False, indent=2), encoding="utf-8")
+        _write_json_atomic(ORDER_FILE, names)
+        return True
     except OSError:
-        pass
+        return False
 
 def load_stale_entries() -> list[dict[str, str]]:
     try:
@@ -425,8 +444,8 @@ class ManagerApp:
         self.tree.selection_set(self.drag_name)
 
     def _drag_end(self, _event: object) -> None:
-        if self.drag_name:
-            save_project_order(self.projects)
+        if self.drag_name and not save_project_order(self.projects):
+            self.status_var.set("Could not save project order.")
         self.drag_name = None
 
     def open_add_dialog(self) -> None:
@@ -551,7 +570,9 @@ class ManagerApp:
                         name_entry.configure(state="normal"); tunnel_entry.configure(state="normal")
                     elif event == "success":
                         done = True
-                        projects = order_projects(discover_projects()); save_project_order(projects)
+                        projects = order_projects(discover_projects())
+                        if not save_project_order(projects):
+                            self.status_var.set("Created project, but could not save project order.")
                         self.busy = False; dialog.destroy()
                         self.messagebox.showinfo("Add Serena Project", f"Created {value.preview.name}\nPorts: {value.preview.mcp_port}/{value.preview.health_port}")
                         self.refresh()
@@ -786,7 +807,7 @@ class ManagerApp:
         def work() -> None:
             for project in targets:
                 if project.stop_cmd and project.stop_cmd.is_file(): run_launcher(project.stop_cmd)
-            projects=discover_projects(); states={p.name:get_project_state(p) for p in projects}
+            projects=order_projects(discover_projects()); states={p.name:get_project_state(p) for p in projects}
             results.put((projects, states))
         def poll() -> None:
             try: projects, states = results.get_nowait()
